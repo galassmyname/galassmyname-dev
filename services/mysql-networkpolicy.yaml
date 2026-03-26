@@ -4,16 +4,15 @@ metadata:
   name: mysql-lan-only
   namespace: galassmyname-dev
 spec:
+  # S'applique au Pod MySQL
   podSelector:
     matchLabels:
       app: mysql
+
   policyTypes:
     - Ingress
+
   ingress:
-    - from:
-        - podSelector:
-            matchLabels:
-              zone: lan
-      ports:
-        - protocol: TCP
-          port: 3306
+    # Bloquer TOUT — aucune règle d'autorisation
+    # Résultat : zéro connexion entrante autorisée vers MySQL
+    []
