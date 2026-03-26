@@ -1,0 +1,82 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: vm2-web
+  namespace: galassmyname-dev
+  labels:
+    app: web
+    zone: dmz
+spec:
+  runStrategy: Always
+  template:
+    metadata:
+      labels:
+        app: web
+        zone: dmz
+    spec:
+      domain:
+        cpu:
+          cores: 1
+        memory:
+          guest: 1Gi
+        devices:
+          disks:
+            - name: rootdisk
+              disk:
+                bus: virtio
+            - name: cloudinitdisk
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: rootdisk
+          containerDisk:
+            image: quay.io/containerdisks/ubuntu:22.04
+        - name: cloudinitdisk
+          cloudInitNoCloud:
+            userData: |
+              #cloud-config
+              user: cloud-user
+              password: Admin1234!
+              chpasswd: { expire: False }
+              ssh_pwauth: True
+              runcmd:
+                - apt-get update -y
+                - curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+                - apt-get install -y nodejs
+                - apt-get install -y nginx
+                - mkdir -p /opt/app
+                - |
+                  cat > /opt/app/index.js << 'EOF'
+                  const http = require('http');
+                  const server = http.createServer((req, res) => {
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                    res.end(`
+                      <html><body style="font-family:sans-serif;padding:40px">
+                        <h1>Projet Fin de Module</h1>
+                        <p>Architecture 3-tiers sur OpenShift</p>
+                        <p>VM2 : Nginx + Node.js — Zone DMZ</p>
+                        <p>MySQL : Pod interne — Zone LAN uniquement</p>
+                      </body></html>
+                    `);
+                  });
+                  server.listen(3000, '127.0.0.1');
+                  EOF
+                - node /opt/app/index.js &
+                - |
+                  cat > /etc/nginx/sites-available/default << 'EOF'
+                  server {
+                      listen 80;
+                      location / {
+                          proxy_pass http://127.0.0.1:3000;
+                          proxy_set_header Host $host;
+                      }
+                  }
+                  EOF
+                - systemctl restart nginx
+                - systemctl enable nginx
